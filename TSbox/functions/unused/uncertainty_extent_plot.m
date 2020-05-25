@@ -1,0 +1,27 @@
+function uncertainty_extent_plot(n_rows,n_cols,cur_splot,unc_data,ocean,n_stat,lat,lon,sal,tframe,month,k)
+
+figure(16+k)
+    
+[latitude,longitude,~] = colTSreg_v2(ocean);
+subplot (n_rows,n_cols,cur_splot) 
+    title({[sal,' month = ',num2str(month),...
+        ' - 20',tframe(end-1:end),' - ',ocean],...
+        [num2str(n_stat),' simulations']})
+map_basin(latitude,longitude,ocean)
+pcolorm(lat,lon,(unc_data./n_stat)'.*100)
+land = shaperead('landareas.shp','UseGeoCoords',true);
+geoshow(land,'FaceColor',[0.8 0.8 0.8])
+
+ca = [0 100];
+% set(gca,'colormap',jet)
+set(gcf,'colormap',jet); hold on
+
+caxis(ca)
+c = colorbar;
+set(c,'Location','southoutside')
+set(c,'Location','southoutside','Position',[0.131609885781344,...
+    0.252754575630321,...
+    0.774383048648828,...
+    0.021333333333333])       % location of the colorbar
+set(get(c,'ylabel'),'string','Likelihood of occurance [%]','fontsize',18)
+end

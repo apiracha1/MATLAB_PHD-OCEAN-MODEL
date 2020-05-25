@@ -1,0 +1,323 @@
+
+
+function wm_transf_TS_error(n_stat,sal_name,temp_name,year,ocean_name,...
+    prec_name,seasons,evap_name,msgs) 
+% choose products, ocean region and time frame
+    sal = sal_name; temp = temp_name; prec = prec_name; ocean = ocean_name; 
+    time_frame = year;
+    
+    
+close(msgs)
+for years = 1:length(time_frame)    
+    for tframe = time_frame(years)            
+        if length(time_frame) > 1
+            tframe = tframe{1};
+        else
+            tframe = tframe{1};
+        end
+
+        if strcmp(seasons,'JFM')
+            seasons = {seasons};
+            months = {1:3};
+        elseif strcmp(seasons,'AMJ')
+            seasons = {seasons};
+            months = {4:6};
+        elseif strcmp(seasons,'JAS')
+            seasons = {seasons};
+            months = {7:9};        
+        elseif strcmp(seasons,'OND')
+            seasons = {seasons};
+            months = {10:12};  
+        elseif strcmp(seasons,'all')
+            seasons = {seasons};
+            months = {1:12};
+        elseif strcmp(seasons,'Each season')
+            months = {1:3,4:6,7:9,10:12};
+            seasons = {'JFM','AMJ','JAS','OND'};
+        end
+        
+        for monthss = 1:length(months)    
+            for month = months(monthss)
+
+            if length(months) > 1
+                month = month{1};
+                season = seasons{monthss};
+            else
+                season = seasons{1};
+                month = month{1};
+            end
+            msg = msgbox('Please Wait...','INFO');
+
+
+            if strcmp(sal,'smosbin')
+                longsss = 'SMOS BINNED';
+            elseif strcmp(sal,'argoNRT')
+                longsss = 'Argo ISAS';
+            elseif strcmp(sal,'woa09')
+                longsss = 'WOA 09';
+            end
+            if strcmp(temp,'ostia')
+                longsst = 'OSTIA';
+            elseif strcmp(temp,'argoNRT')
+                longsst = 'Argo ISAS';
+            elseif strcmp(temp,'woa09')
+                longsst = 'WOA 09';
+            end    
+
+
+            %% 0. parameters
+            cp = gsw_cp0;
+            p0 = 0;
+
+            %% 1.1 load data
+            cd C:\Users\Administrator\Documents\routines\smos_box\TSdiag                
+            if isa(sal,'char')
+                [SSS lat lon] = load_all_v2(strcat(sal(1,:)),tframe,'SSS');
+            else
+                [SSS,lat,lon,longsss] = seperate_user_dataset (sal,tframe);
+            end
+            SST = load_all_v2(strcat(temp(1,:)),tframe,'SST');
+            
+            if ~strcmp(sal,'argoNRT')
+                if strcmp(ocean,'NP') || strcmp(ocean,'EP') ||...
+                        strcmp(ocean,'SP') || strcmp(ocean,'TP') ||...
+                        strcmp(ocean,'SO')
+                    lon(lon<0)=lon(lon<0)+360;
+                end
+            end   
+
+            evap = load_all_v2(evap_name,tframe,'evap');
+            precip = load_all_v2(prec,tframe);
+            lheat = load_all_v2('nocs',tframe,'lheat');
+            sheat = load_all_v2('nocs',tframe,'sheat');
+            lwave = load_all_v2('nocs',tframe,'lwave');
+            swave = load_all_v2('nocs',tframe,'swave');
+
+            H = lheat + sheat + lwave + swave; % [W/m^2] and positive downward
+            W = (evap - precip); % [mm/day] and positive upward
+            W = W*1e-3/86400; % [m/s] 
+
+            % same missing values
+            nanmask = uni_nan_mask(0);
+            H(isnan(nanmask)) = nan;
+            W(isnan(nanmask)) = nan;
+            SSS(isnan(nanmask)) = nan;
+            SST(isnan(nanmask)) = nan;
+
+            %% 2. TEOS10 equation of state
+
+            if ~strcmp(strcat(sal(1,:)),'woa09')
+            [Lon Lat] = meshgrid(lon,lat); lon = Lon; lat = Lat;
+            clear Lon Lat
+            end
+            [xx,yy] = deg2m(lon,lat);
+            dxx = diff(xx,1,2); dxx(:,360) = dxx(:,359);
+            dyy = diff(yy,1,1); dyy(180,:) = dyy(179,:);
+
+            [SSSe, SSTe, sigmaSSS, sigmaSST] =  error_computation(SSS,...
+                SST,n_stat);
+
+
+            SSS = nan(180,360,12);
+            SST = nan(180,360,12);  
+
+
+            gFrho_all = nan(n_stat,1,81);
+            f = waitbar(0,'Please wait...');
+
+            Fscatt_error = nan(n_stat,75,81);
+
+            for n = 1:n_stat
+                waitbar(n/n_stat,f,[num2str(n),...
+                    ' Realisations computed out of ', num2str(n_stat)])    
+
+                SSS(1:180,1:360,1:12) = SSSe(n,:,:,:);
+                SST(1:180,1:360,1:12) = SSTe(n,:,:,:);
+            % conservative Temperature and absolute Salinity
+                auxs = nan(size(SSS)); auxt = nan(size(SST));
+                for m = 1:size(SSS,3)
+                    auxs(:,:,m) = gsw_SA_from_SP(squeeze(SSS(:,:,m)),...
+                        0,lon,lat);
+                    auxt(:,:,m) = gsw_CT_from_t(squeeze(auxs(:,:,m)),...
+                        squeeze(SST(:,:,m)),0);
+                end
+                SSS = auxs; SST = auxt; 
+
+                % density
+                rho = gsw_rho_CT(SSS,SST,0);
+
+                % thermal and haline expansion coefficients
+                alpha = nan(size(SSS)); beta = nan(size(SSS)); 
+                for m = 1:size(SSS,3)
+                    alpha(:,:,m) = gsw_alpha(squeeze(SSS(:,:,m)),...
+                        squeeze(SST(:,:,m)),p0);
+                    beta(:,:,m) = gsw_beta(squeeze(SSS(:,:,m)),...
+                        squeeze(SST(:,:,m)),p0);
+                end
+
+                %% 3. select region
+
+                [indx, indy, fullname] = basin_bounds(ocean);
+                oalpha = squeeze(alpha(indy,indx,:));
+                obeta = squeeze(beta(indy,indx,:));
+                orho = squeeze(rho(indy,indx,:));
+                oH = squeeze(H(indy,indx,:));
+                oW = squeeze(W(indy,indx,:));
+                oSSS = squeeze(SSS(indy,indx,:));
+                oSST = squeeze(SST(indy,indx,:));
+                oxx = squeeze(dxx(indy,indx));
+                oyy = squeeze(dyy(indy,indx));
+
+                if strcmp(ocean,'NAext')
+                    mask = zeros(size(oSSS));
+                    for i = 1:39
+                        mask(1:40-i,i,:) = nan;
+                    end
+                    oSSS(isnan(mask)) = nan;
+                    oSST(isnan(mask)) = nan;
+                elseif strcmp(ocean,'NA2') 
+                    mask = zeros(size(oSSS)); ii = 0;
+                    for i = 16:45
+                        ii = ii+1;
+                        mask(1:30-ii,i,:) = nan;
+                    end
+                    oSSS(isnan(mask)) = nan;
+                    oSST(isnan(mask)) = nan;    
+                end
+
+                %% 4. density flux
+
+                %temperate and salinty bins
+                dT = 0.5; dS = 0.1;
+                T = -2:dT:35; S = 30:dS:38;
+
+                ndays = [31 28 31 30 31 30 31 31 30 31 30 31];
+
+                F = -oalpha.*oH/cp  +  obeta.*orho.*oW.*oSSS./...
+                    (1-oSSS*1e-3);
+
+                Fscatt = nan(length(T),length(S),size(F,3));
+
+                % sum F over the SST and SSS bins
+                for m = month
+                    mSSS = squeeze(oSSS(:,:,m)); 
+                    mSST = squeeze(oSST(:,:,m));
+                    mF = squeeze(F(:,:,m));
+                    for t = 2:length(T) % SST bins
+                        tind = find(mSST>T(t-1) & mSST<T(t));
+                        tmSSS = mSSS(tind); tmF = mF(tind);
+                        txx = oxx(tind); tyy = oyy(tind);
+                        if ~isempty(tind) 
+                            for s = 2:length(S) % SSS bins 
+                                sind = find(tmSSS>S(s-1) & tmSSS<S(s));
+                                if ~isempty(sind)
+                                    stmF = tmF(sind).*txx(sind).*tyy(sind);
+                                    Fscatt(t,s,m) = nansum(stmF)*...
+                                        ndays(m)*86400;
+                                    %Fscatt(t,s,m) = length(sind);
+                                end
+                            end
+                        end
+                    end    
+                end
+
+                Fscatt = nansum(Fscatt,3); %sum over time
+                Fscatt = Fscatt/(365*86400); %annual average
+                Fscatt = Fscatt/0.1/0.5; %devide by bin sizes
+
+                Fscatt = Fscatt*1e-6; % convert to sverdrup
+
+                Fscatt_error (n,:,:) = Fscatt; 
+            end
+            close(f)
+            %% 4. Density flux in T-S space
+            Fscatt_error = permute(Fscatt_error,[2,3,1]);
+
+            figure(1)
+
+            
+            if length(time_frame) > 1 && length(months) == 1
+                subplot (2,length(time_frame),years)
+            elseif length(time_frame) == 1 && length(months) == 1
+                subplot(1,2,1)
+            elseif length(months) > 1 && length(time_frame) > 1
+                if years > 1
+                    monthss = monthss + (length(months)*(years-1));
+                end
+                subplot (length(time_frame),length(months),monthss)
+            elseif length(months) > 1 && length(time_frame) == 1
+                subplot (2,length(months),monthss)                
+            end
+
+            Fscatt_error_mean = nanmean(Fscatt_error,3)
+            p = pcolor(S,T,nanmean(Fscatt_error,3)); set(p,'edgecolor',...
+                'none')
+            hold on
+            cb = colorbar; 
+            ca = [min(nanmean(Fscatt_error,3)) max(nanmean(Fscatt_error,3))];  
+            cm = anom_cmap_nowhite(ca); 
+            set(gca,'colormap',cm)
+            pos = [0.85 0.2 0.03 0.6];
+            set(get(cb,'ylabel'),'string','Transformation [Sv]','fontsize',18)
+
+            trange = -5:0.5:37;
+            srange = 20:0.2:40;
+            rho_contours(trange,srange); caxis(ca);
+            set(gca,'fontsize',18)
+            xlabel([longsss,' SSS [g/kg]'],'fontsize',18)
+            ylabel([longsst,' SST [^{\circ}C]'],'fontsize',18)
+            if isa(season,'cell')
+                season = season{1};
+            end
+            title([fullname,' - ',season,' - 20',tframe(end-1:end),...
+                ' - MEAN'])
+            xlim([27 39]); ylim([0 35]); axis square
+            set(gca,'xtick',27:3:39)
+
+            
+            if length(time_frame) > 1 && length(months) == 1
+                figure (1)
+                subplot (2,length(time_frame),years+3)
+            elseif length(time_frame) == 1 && length(months) == 1
+                figure (1)
+                subplot(1,2,2)
+            elseif length(months) > 1 && length(time_frame) > 1
+                figure (3)
+                subplot (length(time_frame),length(months),monthss)
+            elseif length(months) > 1 && length(time_frame) == 1
+                figure (1)
+                subplot (2,length(months),monthss+4)                              
+            end
+
+            p = pcolor(S,T,nanstd(Fscatt_error,3)); set(p,'edgecolor',...
+                'none')
+            hold on
+            load ('cmap_STD_TS.mat','ans');
+            cmap = ans;
+            cb = colorbar; 
+            ca = [0 1.5];  
+            hold on
+            set(gca,'colormap',cmap)
+            pos = [0.85 0.2 0.03 0.6];
+            set(get(cb,'ylabel'),'string','Transformation [Sv]','fontsize',18)
+
+            trange = -5:0.5:37;
+            srange = 20:0.2:40;
+            rho_contours(trange,srange); caxis(ca);
+            set(gca,'fontsize',18)
+            xlabel([longsss,' SSS [g/kg]'],'fontsize',18)
+            ylabel([longsst,' SST [^{\circ}C]'],'fontsize',18)
+            title([fullname,' - ',season,' - 20',tframe(end-1:end),...
+                ' - MEAN'])
+            xlim([27 39]); ylim([0 35]); axis square
+            set(gca,'xtick',27:3:39)
+
+            end
+        end
+    end
+end
+end
+ 
+    
+    
+    

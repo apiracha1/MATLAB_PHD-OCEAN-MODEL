@@ -1,0 +1,228 @@
+%
+%
+% WM_TRANSF_TS
+%
+% calculates the surface density flux as a function of SSS and SST.
+% The data products, ocean region ecc. can be set by assigning the
+% appropriate strings to the variables below
+%
+%
+
+
+clear all;
+
+% chose products, ocean region and time frame:
+sal = 'smosOI'; temp = 'ostia'; prec = 'cmorph'; ocean = 'NA2'; tframe = 'jan11dec11';
+
+% product names
+if strcmp(sal,'smosOI')
+    longsss = 'SMOS OI';
+elseif strcmp(sal,'argoNRT')
+    longsss = 'Argo ISAS';
+elseif strcmp(sal,'woa09')
+    longsss = 'WOA 09';
+end
+if strcmp(temp,'ostia')
+    longsst = 'OSTIA';
+elseif strcmp(temp,'argoNRT')
+    longsst = 'Argo ISAS';
+elseif strcmp(temp,'woa09')
+    longsst = 'WOA 09';
+end    
+
+
+%% 0. parameters
+cp = gsw_cp0;
+p0 = 0;
+n_stat = 10;
+[latitude, longitude, aratio] = colTSreg_v2(ocean);
+Frho_error = nan(n_stat,length(latitude),length(longitude),121,75);
+%% 1.1 load data
+[SSS lat lon] = load_all_v2(strcat(sal(1,:)),tframe,'SSS');
+SST = load_all_v2(strcat(temp(1,:)),tframe,'SST');
+
+if strcmp(ocean,'NP') || strcmp(ocean,'EP') || strcmp(ocean,'SP') || strcmp(ocean,'TP') || strcmp(ocean,'SO')
+    lon(lon<0)=lon(lon<0)+360;
+end
+
+evap = load_all_v2('oaflux',tframe,'evap');
+precip = load_all_v2(prec,tframe);
+lheat = load_all_v2('nocs',tframe,'lheat');
+sheat = load_all_v2('nocs',tframe,'sheat');
+lwave = load_all_v2('nocs',tframe,'lwave');
+swave = load_all_v2('nocs',tframe,'swave');
+
+H = lheat + sheat + lwave + swave; % [W/m^2] and positive downward
+W = (evap - precip); % [mm/day] and positive upward
+W = W*1e-3/86400; % [m/s] 
+
+% same missing values
+nanmask = uni_nan_mask(0);
+H(isnan(nanmask)) = nan;
+W(isnan(nanmask)) = nan;
+SSS(isnan(nanmask)) = nan;
+SST(isnan(nanmask)) = nan;
+% % % iif ~strcmp(strcat(sal(1,:)),'woa09')
+% % 
+
+
+
+
+
+
+
+
+if ~strcmp(strcat(sal(1,:)),'woa09')
+[Lon Lat] = meshgrid(lon,lat); lon = Lon; lat = Lat; clear Lon Lat
+end
+
+
+[xx,yy] = deg2m(lon,lat);
+dxx = diff(xx,1,2); dxx(:,360) = dxx(:,359);
+dyy = diff(yy,1,1); dyy(180,:) = dyy(179,:);
+
+[SSSe, SSTe, sigmaSSS, sigmaSST] =  error_computation(SSS,SST,n_stat);
+
+
+SSS = nan(180,360,12);
+SST = nan(180,360,12);    
+
+f = waitbar(0,'Please wait...');
+    %% 2. TEOS10 equation of state
+for n = 1:n_stat
+    waitbar(n/n_stat,f,[num2str(n),' Realisations computed out of ', num2str(n_stat)])    
+
+    % conservative Temperature and absolute Salinity
+    auxs = nan(size(SSS)); auxt = nan(size(SST));
+    for m = 1:size(SSS,3)
+        auxs(:,:,m) = gsw_SA_from_SP(squeeze(SSS(:,:,m)),0,lon,lat);
+        auxt(:,:,m) = gsw_CT_from_t(squeeze(auxs(:,:,m)),squeeze(SST(:,:,m)),0);
+    end
+    SSS = auxs; SST = auxt; 
+
+    % density
+    rho = gsw_rho_CT(SSS,SST,0);
+
+    % thermal and haline expansion coefficients
+    alpha = nan(size(SSS)); beta = nan(size(SSS)); 
+    for m = 1:size(SSS,3)
+        alpha(:,:,m) = gsw_alpha(squeeze(SSS(:,:,m)),squeeze(SST(:,:,m)),p0);
+        beta(:,:,m) = gsw_beta(squeeze(SSS(:,:,m)),squeeze(SST(:,:,m)),p0);
+    end
+
+    %% 3. select region
+
+    [indx, indy, fullname] = basin_bounds(ocean);
+    oalpha = squeeze(alpha(indy,indx,:));
+    obeta = squeeze(beta(indy,indx,:));
+    orho = squeeze(rho(indy,indx,:));
+    oH = squeeze(H(indy,indx,:));
+    oW = squeeze(W(indy,indx,:));
+    oSSS = squeeze(SSS(indy,indx,:));
+    oSST = squeeze(SST(indy,indx,:));
+    oxx = squeeze(dxx(indy,indx));
+    oyy = squeeze(dyy(indy,indx));
+
+    if strcmp(ocean,'NAext')
+        mask = zeros(size(oSSS));
+        for i = 1:39
+            mask(1:40-i,i,:) = nan;
+        end
+        oSSS(isnan(mask)) = nan;
+        oSST(isnan(mask)) = nan;
+    elseif strcmp(ocean,'NA2') 
+        mask = zeros(size(oSSS)); ii = 0;
+        for i = 16:45
+            ii = ii+1;
+            mask(1:30-ii,i,:) = nan;
+        end
+        oSSS(isnan(mask)) = nan;
+        oSST(isnan(mask)) = nan;    
+    end
+
+    %% 4. density flux
+
+    %temperate and salinty bins
+    dT = 0.5; dS = 0.1;
+    T = -2:dT:35; S = 30:dS:38;
+
+    ndays = [31 28 31 30 31 30 31 31 30 31 30 31];
+
+    F = -oalpha.*oH/cp  +  obeta.*orho.*oW.*oSSS./(1-oSSS*1e-3);
+
+    rrrr = nan(size(orho,1),size(orho,2),length(S),length(T),12);
+
+        for m = 1:size(F,3)
+            waitbar(m/size(F,3),f,['Computing...'])
+            mSSS = squeeze(oSSS(:,:,m));mSST = squeeze(oSST(:,:,m));mF = squeeze(F(:,:,m)); 
+            for t = 2:length(S)
+               for tt = 2:length(T) 
+                    for j = 1:size(orho,1)
+                        for i = 1:size(orho,2)
+                            if mSSS(j,i) > S(t-1) && mSSS(j,i) < S(t) 
+                                if mSST(j,i) > T(tt-1) && mSST(j,i) < T(tt)
+                                    rrrr(j,i,t,tt,m) = mF(j,i).*(oxx(j,i).*oyy(j,i))*ndays(m)*86400;
+
+                                end
+                            end
+                        end
+                    end
+               end
+            end
+
+
+        end
+
+        Frho = rrrr;                
+         Frho = nansum(Frho,5); % sum over time
+        Frho = Frho/(365*86400); %annual average
+        Frho = Frho/dT/dS; %normalize by density bin size
+        Frho = Frho*1e-6; % convert to sverdrup
+        Frho_error (n,:,:,:,:) = Frho;
+end
+%% 4. Density flux in T-S space
+sijk_error = permute(sijk_error,[2,3,4,5,1]);
+
+figure(1)
+clf
+for h = 1:n_stat
+    Sijk = sijk_error(:,:,:,:,h);
+    
+    worldmap world
+
+    ca = [-100 100];
+    cm = anom_cmap(ca);
+    colormap(cm)
+    caxis ([-100 100])
+    load coast
+    plotm(lat,long)
+
+    [latitude, longitude, aratio] = colTSreg_v2(ocean);
+
+    if strcmp(ocean,'NP') || strcmp(ocean,'SO') || strcmp(ocean,'SP')
+        long(long<0) = long(long<0) + 360;
+        long(long>359.5 | long < 0.5) = nan;
+    elseif strcmp(ocean,'SA')
+        Sijk = [Sijk(:,31:end,:,:) Sijk(:,1:30,:,:)];
+    elseif strcmp(ocean,'NA2')
+        Sijk = [Sijk(:,16:end,:,:) Sijk(:,1:15,:,:,:)];
+    elseif strcmp(ocean,'all')
+        Sijk = [Sijk(:,181:end,:,:) Sijk(:,:,1:180,:,:)];
+        longitude = -179.5:179.5;
+    end
+
+    for ghj = 40:length(T)
+    for gh = 25:length(S)
+        load coast
+        plotm(lat,long)
+        hold on
+        pcolorm(latitude,longitude,Sijk(:,:,gh,ghj));
+        drawnow
+    %     pause 
+        title(['Realistion = ', num2str(h),' sal = ',num2str(S(gh)),'PSU - temp = ',num2str(T(ghj)),'^oC']); 
+        hold off    
+    end
+    end
+end
+    
+    

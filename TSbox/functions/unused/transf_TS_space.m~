@@ -1,0 +1,111 @@
+function [Fscatt_true,Fscatt_mean] = transf_TS_space(F,S,T,SSS,SST,n_stat,dS,dT,F_e,SSS_e,SST_e,dxx,dyy)
+% transf_TS_space                             Calculates transformation in TS space 
+%                                                                             for ROI                               [ Sv ]
+%============================================================
+% 
+% USAGE:  
+% transf_TS_space(oSSS,oSST,F,T,S,Fscatt_error,month,oxx,oyy,ocean,n)
+%                                                   *All variables set
+%                                                   through Control_Center
+% 
+%  Note that transf_TS_space has all variables pre set through
+%  choices in Control_Center.
+%
+% DESCRIPTION:
+%  **As of 19/11/2019 
+% Function calculates transformation in TS space 
+% from pre-selected datasets.
+%
+% INPUT:
+% [oSSS,oSST] = salinity and temperature for t_frame  [ 3-D matrix (kgm-3) ]
+%  F = density flux fro t_frame  [ 3-D matrix (kgm2s-1) ]
+% [T,S] = temperature salinity bins  [ vector (kgm-3) ]
+% Fscatt_error = water mass transformation for each Monte-Carlo Simulation (empty)
+%                                                                                                                         [ 3-D matrix (Sv) ]
+% n = current Monte-Carlo simulation    [ number ]
+% month = current month     [ number ]
+% [oxx,oyy] = distances between latitudes and longitudes    [ 2-D matrix (m) ]
+% ocean = name of basin chosen  [ string ] 
+% [dS,dT] = temp and sal bin width  [ numbers ]
+%                                                                                                 
+% OUTPUT:
+% Fscatt_error = water mass transformation for each Monte-Carlo Simulation (empty)
+%                                                                                                                         [ 3-D matrix (Sv) ]
+% 
+% AUTHOR: 
+%  Aqeel Piracha            [ apiracha@btinternet.com ]
+%
+% VERSION NUMBER: 1 (Tuesday 19th November 2019) *******STARTING FRESH COUNT
+% NOTES on VERSION:
+% None
+%
+% REFERENCES:
+% For calculation of transformation          [ Speer and Tzipermann 1992 ]   
+%
+% The software is currently in development
+%
+%============================================================
+        F_mean = nanmean(F_e,3);
+        SSS_mean = nanmean(SSS_e,3);
+        SST_mean = nanmean(SST_e,3);
+        
+        Fscatt_true = nan(length(T),length(S));
+        Fscatt_mean = nan(length(T),length(S));
+        
+        Fscatt_mean_all = nan(length(T),length(S),n_stat);
+
+
+        f = waitbar(0,'Please wait...');        % Message box to wait while computation is ongoing
+       
+        for i = T(1):0.1:T(end)
+            waitbar(i/T(end),f,[num2str(i),...
+                ' computed out of ', num2str(T(end))])         % Progress bar
+
+            [row_T,col_T] = find(SST>i & SST<i+dT); 
+            [row_Te,col_Te] = find(SST_mean>i & SST_mean<i+dT); 
+            for j = S(1):0.1:S(end)
+                SSS_pos_t = SSS(row_T,col_T);
+                val_t = SSS_pos_t(SSS_pos_t>j & SSS_pos_t<j+dS);
+                [row,col] = find(SSS_mean(row_Te,col_Te)>j & SSS_mean(row_Te,col_Te)<j+dS);
+                [row_e,col_e] = ind2sub(size(SSS_mean),pos_e);
+                
+                F_c = F(row,col); 
+                xx_c = dxx(row,col);
+                yy_c = dyy(row,col);
+                F_area = F_c.*xx_c.*yy_c;
+                F_area(isnan(F_area)) = 0;
+                F_scatt_t = ((sum(F_area,'all')/length(row)/dS)*1e-6);
+                Fscatt_true(find(T == i),find(S == j)) = F_scatt_t;
+
+                F_ce = F_mean(row_e,col_e); 
+                xx_ce = dxx(row_e,col_e);
+                yy_ce = dyy(row_e,col_e);
+                F_areae = F_ce.*xx_ce.*yy_ce;
+                F_areae(isnan(F_areae)) = 0;
+                F_scatt_e = ((sum(F_areae,'all')/length(row_e)/dS)*1e-6);
+                Fscatt_mean(find(T == i),find(S == j)) = F_scatt_e;
+
+%                 for n = 1:n_stat    
+%                     
+%                     [row_Te,col_Te] = find(SST_e(:,:,n)>i & SST_e(:,:,n)<i+dT); 
+%                     [row_e,col_e] = find(SSS_e(row_Te,col_Te,n)>j & SSS_e(row_Te,col_Te,n)<j+dS);
+%                    
+%                     Fe = F_e(:,:,n);
+%                     F_ce = Fe(row_e,col_e); 
+%                     xx_ce = dxx(row_e,col_e);
+%                     yy_ce = dyy(row_e,col_e);
+%                     F_areae = F_ce.*xx_ce.*yy_ce;
+%                     F_areae(isnan(F_areae)) = 0;
+%                     F_scatt_e = ((sum(F_areae,'all')/length(row_e)/dS)*1e-6);
+%                     Fscatt_mean_all(find(T == i),find(S == j),n) = F_scatt_e;
+%                 end
+%                 Fscatt_std = nanstd(Fscatt_mean_all,3);
+%         
+            end
+            
+        end
+        close(f)
+end
+
+
+                
