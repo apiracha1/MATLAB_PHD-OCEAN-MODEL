@@ -64,12 +64,12 @@ function [Frho_true,Frho_mean,Frho_std,...
     % SSS = nanmean(SSS_WOA01,3);
     % SSS = nanmean(SSS_WOA18,3);
     
-    SSS = gsw_SA_from_SP(SSS,0,lon,lat);
+%     SSS = gsw_SA_from_SP(SSS,0,lon,lat);
     
 % temperature
     % SST = SST - 273.15;
     SST = nanmean(SST,3) - 273.15;
-    SST = gsw_CT_from_t(SSS,SST,0);
+%     SST = gsw_CT_from_t(SSS,SST,0);
     
 % heat flux
     H = nanmean(H,3);
