@@ -1,4 +1,4 @@
-function NEW_DATA = regridding_dataset_c(NEW_RES,OLD_RES,X_NEW_GRID,Y_NEW_GRID,data)
+jjjjfunction NEW_DATA = regridding_dataset_c(NEW_RES,OLD_RES,X_NEW_GRID,Y_NEW_GRID,data)
 % matlab code of similar function written in c
 SCALE_S = round(NEW_RES / OLD_RES);
 	for x = 1:X_NEW_GRID

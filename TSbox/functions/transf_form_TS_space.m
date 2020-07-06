@@ -10,25 +10,25 @@ function [Fscatt_true,Fscatt_e,...
 %
 % INPUT:
 %  (F,F_e)          = density flux (ref,MC)            [ kg/m^2s ]
-%  S                = salinity classes                 [ PSU ] 
+%  S                = salinity classes                 [ PSU ]
 %  (SSS,SSS_e)      = salinity data (ref,MC)           [ PSU ]
-%  T                = temperature classes              [ degC ] 
+%  T                = temperature classes              [ degC ]
 %  (SST,SST_e)      = temperature data (ref,MC)        [ degC ]
 %  n_stat           = # of Monte Carlo simulations     [ number ]
 %  dS               = salinity bin width               [ PSU ]
 %  dT               = temperature bin width            [ degC ]
 %  (dxx,dyy)        = distance (latitude,longitude     [ m ]
-% 
+%
 % OUTPUT:
-% (Fscatt,gFscatt)_true = ref. trans(formation) 
-%               temperature-salinity space             [ Sv = 1e6 m^3s^-1 ] 
-% (Fscatt,gFscatt)_e = MC trans(formation) in 
-%               temperature-salinity space             [ Sv = 1e6 m^3s^-1 ]            
+% (Fscatt,gFscatt)_true = ref. trans(formation)
+%               temperature-salinity space             [ Sv = 1e6 m^3s^-1 ]
+% (Fscatt,gFscatt)_e = MC trans(formation) in
+%               temperature-salinity space             [ Sv = 1e6 m^3s^-1 ]
 % AUTHOR:
 %  Aqeel Piracha                                 [ apiracha@btinternet.com ]
 %
-% VERSION 
-% 1           = First made                       [ Thursday 10th October 2019 ] 
+% VERSION
+% 1           = First made                       [ Thursday 10th October 2019 ]
 % 2           = neatened                         [ Sunday 26th April 2020 ]
 %
 % REFERENCES:
@@ -37,7 +37,7 @@ function [Fscatt_true,Fscatt_e,...
 % The software is currently in development
 %
 %=======================================================================================================================
-    
+
     lat_len = size(SSS,2);
     lon_len = size(SSS,1);
 
@@ -59,17 +59,17 @@ function [Fscatt_true,Fscatt_e,...
 
 %% Reference
 
-    f = waitbar(0,'Please wait...');        
+    f = waitbar(0,'Please wait...');
     tic
 % transformation
     for Tn = 1:num_classes_T
-        bin_ind_T = find(SST_discretized == Tn);        
+        bin_ind_T = find(SST_discretized == Tn);
         bin_ind_S = SSS_discretized(bin_ind_T);
         for Sn = 1:num_classes_S
             S_class = bin_ind_S == Sn;
             S_class_ind = find(S_class == 1);
             [row,col] = ind2sub([lon_len,lat_len],S_class_ind);
-            F_c = F(row,col); 
+            F_c = F(row,col);
             xx_c = dxx(row,col);
             yy_c = dyy(row,col);
             F_area = F_c.*xx_c.*yy_c;
@@ -96,14 +96,14 @@ function [Fscatt_true,Fscatt_e,...
         for Tn = 1:num_classes_T
             waitbar(n/n_stat,f,['MC = ',num2str(n),'/',num2str(n_stat),...
                 ' - T = ',num2str(Tn),'/',num2str(num_classes_T),...
-                ' - S = ',num2str(Sn),'/',num2str(num_classes_S)])         
-            bin_ind_Te = find(SST_discretized_e == Tn);        
+                ' - S = ',num2str(Sn),'/',num2str(num_classes_S)])
+            bin_ind_Te = find(SST_discretized_e == Tn);
             bin_ind_Se = SSS_discretized_e(bin_ind_Te);
             for Sn = 1:num_classes_S
                 S_classe = bin_ind_Se == Sn;
                 S_class_inde = find(S_classe == 1);
                 [row,col] = ind2sub([lon_len,lat_len],S_class_inde);
-                F_c = F_e(row,col,n); 
+                F_c = F_e(row,col,n);
                 xx_c = dxx(row,col);
                 yy_c = dyy(row,col);
                 F_area = F_c.*xx_c.*yy_c;
@@ -112,7 +112,7 @@ function [Fscatt_true,Fscatt_e,...
                 Fscatt_e(Tn,Sn,n) = F_scatt_e;
             end
         end
-% formation    
+% formation
         [gsFscatt,gtFscatt] = grad(ss,tt,Fscatt_e(:,:,n));
         gFscatt = complex(dS*gsFscatt,dT*gtFscatt);
         gFscatt_e(:,:,n) = -1*(real(gFscatt).*real(grho)+...
@@ -127,4 +127,4 @@ function [Fscatt_true,Fscatt_e,...
 end
 
 
-                
+

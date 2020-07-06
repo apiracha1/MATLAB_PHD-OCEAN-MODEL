@@ -1,4 +1,4 @@
-function boxAveraging_c(NEW_RES,OLD_RES,X_NEW_GRID,Y_NEW_GRID,data)
+function NEW_DATA = boxAveraging_c(NEW_RES,OLD_RES,X_NEW_GRID,Y_NEW_GRID,data)
 
 SCALE_S = round(NEW_RES/OLD_RES);
 NEW_DATA = zeros(X_NEW_GRID,Y_NEW_GRID);
