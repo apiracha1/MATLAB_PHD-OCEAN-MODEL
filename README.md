@@ -39,6 +39,6 @@ addpath(genpath("TSdiag"))
 ```matlab
 wm_code_main()
 ```
-		* This will execute the main function of the numerical model which automatically calls all relevant functions to run the model and genrate outputs
+This will execute the main function of the numerical model which automatically calls all relevant functions to run the model and genrate outputs
 
 
