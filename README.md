@@ -11,7 +11,7 @@ The study was driven by a need to use salinity data taken from SMOS in order to 
 The oceans can be thought of as comprising of multiple bodies of water each having their own unique temperature and salinity characteristcs. When and where these unique bodies of water appear (formation) or move away from a specific location (destruction) can be related to the exchange of heat and freshwater with the atmosphere.
 The transformation is the mass flow of water through a constant property surface (i.e the mass flux per unit area) and the formation is the difference in transformation between two successive constant property surfaces.
 
-![the transformation in this figure is given by a diapycnal flux or the mass flux of water through a constant density surface (a). A positive or negative formation can result if the mass flux accross one of the constat density surfaces is greater (b) or smaller (c) than through the subsequent density surface, respectively.](https://d3i71xaburhd42.cloudfront.net/7ff7dae5824b1eed5abc8082f0dddfaa698ca591/3-Figure2-1.png)
+![](https://d3i71xaburhd42.cloudfront.net/7ff7dae5824b1eed5abc8082f0dddfaa698ca591/3-Figure2-1.png)
 
 It does this in the following ways:
 
