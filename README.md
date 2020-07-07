@@ -1,6 +1,3 @@
----
-bibliography: ../../../Articles/uni.bib
----
 # Documentation for SMOS toolbox
 ## An analysis of watermass (trans)formation from space
 ### Overview
