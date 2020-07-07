@@ -15,19 +15,30 @@ The transformation is the mass flow of water through a constant property surface
 |:--:|
 |  The transformation in this figure is given by a diapycnal flux or the mass flux of water through a constant density surface (a). A positive or negative formation can result if the mass flux accross one of the constat density surfaces is greater (b) or smaller (c) than through the subsequent density surface, respectively. |
 
-It does this in the following ways:
+The goals of the model are to:
 
-	-
+	- Model propogation of satellite uncertainties into water mass (trans)formation calculations
+		* through the use of a Monte-Carlo simulation
+	- To understand distribution and location of water mass (trans)formation in:
+		* denisty space
+		* temperature - salinity space
+		* geographic space
 
 ### Technical Information
-The code included in this repository highlights the work done at the European Space Agency in order to develop a model which computes and analyses water mass formation using satellite data.
+**NOTE: The code is highly experimental and is still under development and as such much work is needed in order for the model to work as intended**
 
-The goals of the model are to output (trans)formation data in:
+#### How to run the code
 
-	- denisty space
-	- temperature - salinity space
-	- geographic space
+	- clone the github repository
+	- Open MATLAB and navigate to the folder in which the repository was cloned and run the following two commands
+```matlab
+addpath(genpath("TSbox"))
+addpath(genpath("TSdiag"))
+```
+	- Then you can run the following command
+```matlab
+wm_code_main()
+```
+		* This will execute the main function of the numerical model which automatically calls all relevant functions to run the model and genrate outputs
 
-
-### Methodology
 
